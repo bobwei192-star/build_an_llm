@@ -94,7 +94,7 @@ print(dropout(example))
 torch.manual_seed(123)
 print("现在对注意力权重矩阵进行dropout 操作")
 print(dropout(attn_weights))
-现在对注意力权重矩阵进行dropout 操作
+# 现在对注意力权重矩阵进行dropout 操作
 # tensor([[2.0000, 0.0000, 0.0000, 0.0000, 0.0000, 0.0000],
 #         [0.0000, 0.8966, 0.0000, 0.0000, 0.0000, 0.0000],
 #         [0.0000, 0.0000, 0.6206, 0.0000, 0.0000, 0.0000],
@@ -115,3 +115,26 @@ batch = torch.stack((inputs, inputs), dim = 0) #2个输入每个输入有6个词
 print("batch.shape:", batch.shape)
 #将生成1个三维张量 其中包含2个输入文本，每个文本6个词元，每个词元是1个3维的嵌入向量
 
+#1个简化的因果注意力类
+class CausalAttention(nn.Module):
+    def __init__(self,d_in, d_out, contex_length, dropout, qkv_bias=False):
+        super().__init__()
+        self.d_out = d_out
+        self.W_query=nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.W_key = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.W_value = nn.Linear(d_in, d_out, bias=qkv_bias)
+        self.dropout=nn.Dropout(dropout)
+        self.register_buffer('mask', 
+            torch.triu(torch.ones(context_length, context_length), 
+            diagonal=1))
+    
+    def forward(self, x):
+        b, num_tokens, d_in = x.shape
+        keys = self.W_key(x)
+        queries = self.W_query(x)
+        values = self.W_value(x)
+
+        attn_scores = queries @ keys.transpose(1,2)
+        attn_scores.masked_fill_(
+            self.mask.bool()[]
+        )
