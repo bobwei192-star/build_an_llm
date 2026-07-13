@@ -1,8 +1,12 @@
 
 import torch
+import os
 
-# 由于 Python 不支持以数字开头的模块名，使用 exec() 执行文件导入类
-with open('2实现带可训练权重的自注意力机制.py', 'r', encoding='utf-8') as f:
+# 获取当前脚本所在目录的绝对路径
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 使用绝对路径导入自注意力类
+with open(os.path.join(script_dir, '2实现带可训练权重的自注意力机制.py'), 'r', encoding='utf-8') as f:
     code = f.read()
     exec(code)
 
@@ -117,7 +121,7 @@ print("batch.shape:", batch.shape)
 
 #1个简化的因果注意力类
 class CausalAttention(nn.Module):
-    def __init__(self,d_in, d_out, contex_length, dropout, qkv_bias=False):
+    def __init__(self,d_in, d_out, context_length, dropout, qkv_bias=False):
         super().__init__()
         self.d_out = d_out
         self.W_query=nn.Linear(d_in, d_out, bias=qkv_bias)
@@ -135,6 +139,32 @@ class CausalAttention(nn.Module):
         values = self.W_value(x)
 
         attn_scores = queries @ keys.transpose(1,2)
+        # masked_fill_(mask, value): 将 mask 为 True 的位置填充为 value
+        # 因果掩码：将未来位置（上三角）填充为负无穷，softmax 后权重为0
         attn_scores.masked_fill_(
-            self.mask.bool()[]
+            self.mask.bool(), float('-inf')
         )
+        
+        # 缩放 + softmax：确保权重总和为1
+        attn_weights = torch.softmax(
+            attn_scores / keys.shape[-1] ** 0.5, dim=-1
+        )
+        
+
+        # dropout 防止过拟合
+        attn_weights = self.dropout(attn_weights)
+        
+        # 计算上下文向量：注意力权重 @ 值向量
+        context_vec = attn_weights @ values
+        return context_vec
+
+
+
+torch.manual_seed(123)
+context_length = batch.shape[1]
+ca = CausalAttention(d_in, d_out, context_length, 0.0)
+context_vecs = ca(batch)
+
+# 最终生成的上下文向量是一个三维张量， 其中每个词元现在用二维嵌入表示
+print("context_vecs.shape:", context_vecs.shape)
+
